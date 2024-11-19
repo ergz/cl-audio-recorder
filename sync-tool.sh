@@ -6,10 +6,10 @@ NC='\033[0m'         # No Color
 
 # Generate a more aggressive mono beep file
 # Higher frequency (2500Hz), longer duration, louder volume, added overdrive
-sox -n -r 44100 -c 1 -b 16 /tmp/sync_beep.wav \
-  synth 0.08 sine 2500 \
-  gain -3 \
-  overdrive 40 20
+# sox -n -r 44100 -c 1 -b 16 /tmp/sync_beep.wav \
+#   synth 0.08 sine 2500 \
+#   gain -3 \
+#   overdrive 40 20
 
 # Clear screen and hide cursor
 clear
@@ -52,6 +52,6 @@ clear_flash() {
 while true; do
   read -r
   show_flash
-  aplay -q /tmp/sync_beep.wav
+  aplay -q sync_beep.wav
   clear_flash
 done
