@@ -45,6 +45,16 @@ show_recording_animation() {
   done
 }
 
+# Check if sox is installed
+check_sox() {
+  if ! command -v sox &>/dev/null; then
+    echo -e "${YELLOW}sox is not installed. Install it for audio processing:${NC}"
+    echo -e "${GREEN}sudo apt-get install sox${NC}"
+    return 1
+  fi
+  return 0
+}
+
 # Check if filename base is provided
 if [ $# -eq 0 ]; then
   echo -e "${RED}Error: No filename provided${NC}"
@@ -56,6 +66,7 @@ fi
 # Create filename with timestamp
 timestamp=$(date +"%Y%m%d_%H%M%S")
 filename="${1}_${timestamp}.wav"
+raw_filename="raw_${filename}"
 
 # Main script
 print_header
@@ -78,6 +89,39 @@ if ! arecord -D "$device" -d 1 -f S24_3LE /dev/null >/dev/null 2>&1; then
   exit 1
 fi
 
+# Audio processing options
+echo
+echo -e "${BLUE}╔════════════════════════════════════╗${NC}"
+echo -e "${BLUE}║       ${BOLD}Audio Processing Setup${NC}${BLUE}      ║${NC}"
+echo -e "${BLUE}╚════════════════════════════════════╝${NC}"
+echo
+
+if check_sox; then
+  echo -ne "${BOLD}Enable noise gate? (y/n):${NC} "
+  read use_noise_gate
+
+  echo -ne "${BOLD}Enable compression? (y/n):${NC} "
+  read use_compression
+
+  echo -ne "${BOLD}Enable normalization? (y/n):${NC} "
+  read use_normalization
+
+  # Build sox command
+  sox_command="sox $raw_filename $filename"
+  if [ "$use_noise_gate" = "y" ]; then
+    sox_command="$sox_command noisered"
+  fi
+  if [ "$use_compression" = "y" ]; then
+    sox_command="$sox_command compand 0.3,1 6:-70,-60,-20 -5 -90 0.2"
+  fi
+  if [ "$use_normalization" = "y" ]; then
+    sox_command="$sox_command norm"
+  fi
+else
+  echo -e "${YELLOW}No audio processing available (sox not installed)${NC}"
+  raw_filename="$filename"
+fi
+
 # Start recording
 echo
 echo -e "${BLUE}╔════════════════════════════════════╗${NC}"
@@ -88,15 +132,31 @@ echo -e "${BOLD}Device:${NC} $device"
 echo -e "${BOLD}Format:${NC} 24-bit (S24_3LE)"
 echo -e "${BOLD}Sample Rate:${NC} 48kHz"
 echo -e "${BOLD}Output:${NC} $filename"
+if [ "$raw_filename" != "$filename" ]; then
+  echo -e "${BOLD}Processing:${NC} Yes"
+  if [ "$use_noise_gate" = "y" ]; then echo -e " - Noise Gate"; fi
+  if [ "$use_compression" = "y" ]; then echo -e " - Compression"; fi
+  if [ "$use_normalization" = "y" ]; then echo -e " - Normalization"; fi
+fi
 echo
 
 # Start recording in background
 echo -e "${GREEN}Starting recording...${NC}"
-arecord -D "$device" -f S24_3LE -r 48000 -t wav "$filename" &>/dev/null &
+arecord -D "$device" -f S24_3LE -r 48000 -t wav "$raw_filename" &>/dev/null &
 record_pid=$!
 
 # Show recording animation
 show_recording_animation $record_pid
 
 # This line will only be reached after Ctrl+C is pressed
-echo -e "\n\n${GREEN}Recording saved to: $filename${NC}"
+echo -e "\n\n${GREEN}Recording stopped.${NC}"
+
+# Apply audio processing if enabled
+if [ "$raw_filename" != "$filename" ]; then
+  echo -e "${GREEN}Applying audio processing...${NC}"
+  eval $sox_command
+  rm "$raw_filename"
+  echo -e "${GREEN}Processing complete.${NC}"
+fi
+
+echo -e "${GREEN}Recording saved to: $filename${NC}"
